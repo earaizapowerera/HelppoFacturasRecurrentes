@@ -1,0 +1,1365 @@
+@{
+    ViewData["Title"] = "Facturación Recurrente con Comodines";
+}
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-12">
+            <h1 class="mb-4">🧾 Facturación Recurrente con Comodines</h1>
+
+            <!-- Panel de información -->
+            <div class="alert alert-info mb-4">
+                <h5>💡 Información del Sistema</h5>
+                <p><strong>Tipo de Cambio Actual:</strong> <span id="tipoCambioActual">Cargando...</span></p>
+                <p><strong>Fecha:</strong> @DateTime.Now.ToString("dd/MM/yyyy HH:mm")</p>
+            </div>
+        </div>
+    </div>
+
+    <form id="formularioFacturacion">
+        <div class="row">
+            <!-- Columna Principal -->
+            <div class="col-md-8">
+                <!-- Datos del Emisor -->
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">🏢 Datos del Emisor</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="emisorRFC" class="form-label">RFC Emisor *</label>
+                                <select class="form-select" id="emisorRFC" name="EmisorRFCId" required>
+                                    <option value="">Seleccione RFC Emisor...</option>
+                                    @foreach (var propietario in ViewBag.PropietariosRFC)
+                                    {
+                                        <option value="@propietario.IdPropietarioRFC">
+                                            @propietario.RFC - @propietario.RazonSocial
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Datos Generales -->
+                <div class="card mb-4">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">📋 Datos Generales</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="cliente" class="form-label">Cliente *</label>
+                                <div class="dropdown">
+                                    <input type="text"
+                                           class="form-control dropdown-toggle"
+                                           id="clienteBuscar"
+                                           placeholder="Primero seleccione RFC Emisor..."
+                                           autocomplete="off"
+                                           data-bs-toggle="dropdown"
+                                           aria-expanded="false">
+                                    <ul class="dropdown-menu w-100" id="clientesDropdown" style="max-height: 300px; overflow-y: auto;">
+                                        <li><span class="dropdown-item-text text-muted">Primero seleccione RFC Emisor</span></li>
+                                    </ul>
+                                </div>
+                                <input type="hidden" id="cliente" name="ClienteId" required>
+                                <small class="text-muted">Escriba para buscar por RFC o nombre</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="serie" class="form-label">Serie</label>
+                                <input type="text" class="form-control" id="serie" name="Serie" placeholder="A{mesactual}">
+                                <small class="text-muted">Puede usar comodines</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="folio" class="form-label">Folio</label>
+                                <input type="text" class="form-control" id="folio" name="Folio" placeholder="{SiguienteFolio}">
+                                <small class="text-muted">Use {SiguienteFolio} para auto-incrementar</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="formaPago" class="form-label">Forma de Pago *</label>
+                                <select class="form-select" id="formaPago" name="FormaPago" required>
+                                    <option value="">Seleccione...</option>
+                                    @foreach (var forma in ViewBag.FormasPago)
+                                    {
+                                        <option value="@forma.Codigo">@forma.Codigo - @forma.Descripcion</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-4">
+                                <label for="usoCFDI" class="form-label">Uso CFDI *</label>
+                                <select class="form-select" id="usoCFDI" name="UsoCFDI" required>
+                                    <option value="">Seleccione...</option>
+                                    @foreach (var uso in ViewBag.UsosCFDI)
+                                    {
+                                        <option value="@uso.Codigo">@uso.Codigo - @uso.Descripcion</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="moneda" class="form-label">Moneda *</label>
+                                <select class="form-select" id="moneda" name="Moneda" required>
+                                    <option value="">Seleccione...</option>
+                                    @foreach (var moneda in ViewBag.Monedas)
+                                    {
+                                        <option value="@moneda.Codigo">@moneda.Codigo - @moneda.Descripcion</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="tipoIVA" class="form-label">IVA *</label>
+                                <select class="form-select" id="tipoIVA" name="TipoIVA" required>
+                                    <option value="ConIVA">Con IVA (16%)</option>
+                                    <option value="IVA0">IVA 0%</option>
+                                    <option value="SinIVA">Sin IVA</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="lugarExpedicion" class="form-label">CP Expedición (Emisor)</label>
+                                <input type="text" class="form-control" id="lugarExpedicion" name="LugarExpedicion" placeholder="Código Postal">
+                                <small class="text-muted">Se carga del emisor</small>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="codigoPostalCliente" class="form-label">CP Cliente</label>
+                                <input type="text" class="form-control" id="codigoPostalCliente" name="CodigoPostalCliente" placeholder="Código Postal">
+                                <small class="text-muted">Se carga del cliente</small>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="regimenFiscalCliente" class="form-label">Régimen Fiscal Cliente</label>
+                                <input type="text" class="form-control" id="regimenFiscalCliente" name="RegimenFiscalCliente" placeholder="601, 626, etc.">
+                                <small class="text-muted">Se carga del cliente</small>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label for="condicionesPago" class="form-label">Condiciones de Pago</label>
+                                <input type="text" class="form-control" id="condicionesPago" name="CondicionesPago" placeholder="Contado / Servicios de {mes_texto}">
+                                <small class="text-muted">Puede usar comodines</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="observaciones" class="form-label">Observaciones</label>
+                                <input type="text" class="form-control" id="observaciones" name="Observaciones" placeholder="Factura correspondiente a {mes_texto} {añoactual}">
+                                <small class="text-muted">Puede usar comodines</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Conceptos -->
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">🛍️ Conceptos</h5>
+                        <button type="button" class="btn btn-light btn-sm" onclick="agregarConcepto()">
+                            ➕ Agregar Concepto
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="conceptos-container">
+                            <!-- Los conceptos se agregarán dinámicamente aquí -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Wizard Navigation -->
+                <div class="card">
+                    <div class="card-header">
+                        <!-- Progress Steps -->
+                        <div class="d-flex justify-content-between mb-3">
+                            <div class="step active" id="step1-indicator">
+                                <div class="step-circle">1</div>
+                                <div class="step-label">Configurar Factura</div>
+                            </div>
+                            <div class="step" id="step2-indicator">
+                                <div class="step-circle">2</div>
+                                <div class="step-label">Vista Previa</div>
+                            </div>
+                            <div class="step" id="step3-indicator">
+                                <div class="step-circle">3</div>
+                                <div class="step-label">Programación</div>
+                            </div>
+                            <div class="step" id="step4-indicator">
+                                <div class="step-circle">4</div>
+                                <div class="step-label">Confirmación</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Step Navigation Buttons -->
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" id="btnAnterior" onclick="anteriorPaso()" disabled>
+                                ⬅️ Anterior
+                            </button>
+                            <div>
+                                <button type="button" class="btn btn-info me-2" onclick="verPlantillasGuardadas()">
+                                    📋 Ver Plantillas Guardadas
+                                </button>
+                                <button type="button" class="btn btn-primary" id="btnSiguiente" onclick="siguientePaso()">
+                                    Siguiente ➡️
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel Lateral -->
+            <div class="col-md-4">
+                <!-- Comodines Disponibles -->
+                <div class="card mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h6 class="mb-0">🏷️ Comodines Disponibles</h6>
+                    </div>
+                    <div class="card-body">
+                        <small>
+                            @foreach (var comodin in ViewBag.ComodinesDisponibles)
+                            {
+                                <span class="badge bg-secondary me-1 mb-1">@comodin</span>
+                            }
+                        </small>
+                        <hr>
+                        <div style="font-size: 0.8rem;">
+                            @Html.Raw(ViewBag.EjemplosFormula.Replace("\n", "<br>"))
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resultado -->
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0">📄 Resultado</h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="resultado-container">
+                            <p class="text-muted">Use "Ver Cadena Preview" para visualizar la cadena que se enviará al WebService.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <!-- Wizard Step 2: Vista Previa -->
+    <div id="step2-content" class="wizard-step">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">📄 Vista Previa HTML</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="vistaPrevia-html" style="max-height: 500px; overflow-y: auto;">
+                            <p class="text-muted">Haga clic en "Generar Vista Previa" para ver el resultado</p>
+                        </div>
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-primary" onclick="generarVistaPreviaWizard()">
+                                🔄 Actualizar Vista Previa
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">⚡ Cadena de Facturación</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="vistaPrevia-cadena" style="max-height: 500px; overflow-y: auto;">
+                            <p class="text-muted">Haga clic en "Generar Cadena" para ver el resultado</p>
+                        </div>
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-info" onclick="generarCadenaWizard()">
+                                🔄 Actualizar Cadena
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wizard Step 3: Programación -->
+    <div id="step3-content" class="wizard-step">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">📅 Configurar Programación de Facturación</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <label class="form-label">Tipo de Programación *</label>
+                            <div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="tipoProgramacion" id="radiodiaMes" value="DiaMes" checked>
+                                    <label class="form-check-label" for="radiodiaMes">
+                                        Día específico de cada mes
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="tipoProgramacion" id="radiodiaSemana" value="DiaSemana">
+                                    <label class="form-check-label" for="radiodiaSemana">
+                                        Días específicos de la semana
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Opciones para Día del Mes -->
+                        <div id="opcionesDiaMes" class="programacion-option">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="diaEjecucion" class="form-label">Día del Mes</label>
+                                    <select class="form-select" id="diaEjecucion" name="DiaEjecucion">
+                                        @for (int i = 1; i <= 31; i++)
+                                        {
+                                            if (i == 1)
+                                            {
+                                                <option value="@i" selected>Día @i</option>
+                                            }
+                                            else
+                                            {
+                                                <option value="@i">Día @i</option>
+                                            }
+                                        }
+                                    </select>
+                                    <small class="text-muted">Se ejecutará el día X de cada mes</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Opciones para Día de la Semana -->
+                        <div id="opcionesDiaSemana" class="programacion-option" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="diaSemana" class="form-label">Día de la Semana</label>
+                                    <select class="form-select" id="diaSemana" name="DiaSemana">
+                                        <option value="Lunes">Lunes</option>
+                                        <option value="Martes" selected>Martes</option>
+                                        <option value="Miercoles">Miércoles</option>
+                                        <option value="Jueves">Jueves</option>
+                                        <option value="Viernes">Viernes</option>
+                                        <option value="Sabado">Sábado</option>
+                                        <option value="Domingo">Domingo</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="intervaloSemanas" class="form-label">Cada cuántas semanas</label>
+                                    <select class="form-select" id="intervaloSemanas" name="IntervaloEjecucion">
+                                        <option value="1" selected>Cada semana</option>
+                                        <option value="2">Cada 2 semanas</option>
+                                        <option value="3">Cada 3 semanas</option>
+                                        <option value="4">Cada 4 semanas</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4">
+                            <div class="mb-3">
+                                <label for="nombrePlantilla" class="form-label">Nombre de la Plantilla *</label>
+                                <input type="text" class="form-control" id="nombrePlantilla" name="Nombre"
+                                       placeholder="Ej: Facturación Todini Mensual" required>
+                                <small class="text-muted">Este nombre te ayudará a identificar la plantilla</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wizard Step 4: Confirmación -->
+    <div id="step4-content" class="wizard-step">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">✅ Confirmación</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-success">
+                            <h6>🎉 ¡Plantilla de Facturación Recurrente Lista!</h6>
+                            <p class="mb-0">Su plantilla ha sido configurada y guardada exitosamente.</p>
+                        </div>
+
+                        <div id="resumenPlantilla" class="mt-4">
+                            <!-- El resumen se llenará dinámicamente -->
+                        </div>
+
+                        <div class="mt-4 d-flex gap-2">
+                            <button type="button" class="btn btn-success" onclick="guardarPlantillaFinal()">
+                                💾 Guardar Plantilla
+                            </button>
+                            <button type="button" class="btn btn-outline-primary" onclick="crearNuevaPlantilla()">
+                                ➕ Crear Nueva Plantilla
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Template para Concepto -->
+<template id="concepto-template">
+    <div class="concepto-item border p-3 mb-3 rounded">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">Concepto <span class="concepto-numero"></span></h6>
+            <button type="button" class="btn btn-danger btn-sm" onclick="eliminarConcepto(this)">❌</button>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <label class="form-label">Producto/Servicio *</label>
+                <select class="form-select producto-servicio" required>
+                    <option value="">Primero seleccione RFC Emisor...</option>
+                </select>
+                <small class="text-muted">Se cargan productos específicos del RFC emisor</small>
+            </div>
+        </div>
+        <div class="row mt-2">
+            <div class="col-md-12">
+                <label class="form-label">Descripción *</label>
+                <input type="text" class="form-control descripcion" required placeholder="Servicios de {mes_texto} {añoactual}">
+                <small class="text-muted">Puede usar comodines</small>
+            </div>
+        </div>
+        <div class="row mt-2">
+            <div class="col-md-4">
+                <label class="form-label">Cantidad *</label>
+                <input type="text" class="form-control cantidad" required placeholder="1" value="1">
+                <small class="text-muted">Fórmula o número</small>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Valor Unitario *</label>
+                <input type="text" class="form-control valor-unitario" required placeholder="600*{tcfixed}">
+                <small class="text-muted">Fórmula o número</small>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Importe</label>
+                <input type="text" class="form-control importe" readonly placeholder="Se calcula automáticamente">
+                <small class="text-muted">Cantidad × Valor Unit.</small>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Modal Vista Previa Factura -->
+<div class="modal fade" id="modalVistaPrevia" tabindex="-1" aria-labelledby="modalVistaPreviaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalVistaPreviaLabel">📄 Vista Previa de Factura</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="facturaPreview" style="padding: 20px; background: white; font-family: Arial, sans-serif;">
+                    <!-- El contenido de la factura se generará aquí -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" onclick="window.print()">🖨️ Imprimir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <!-- Cache buster v3: @DateTime.Now.Ticks -->
+    <script>
+        let conceptoCounter = 0;
+        let currentStep = 1;
+        const totalSteps = 4;
+
+        // Cargar tipo de cambio al iniciar
+        $(document).ready(function() {
+            cargarTipoCambio();
+            agregarConcepto(); // Agregar un concepto inicial
+
+            // Cargar clientes y productos cuando se seleccione RFC emisor
+            $('#emisorRFC').change(function() {
+                cargarDatosEmisor();
+                cargarClientesPorRFC();
+                cargarProductosPorRFC();
+            });
+
+            // Búsqueda en tiempo real de clientes
+            $('#clienteBuscar').on('input', function() {
+                buscarClientesEnTiempoReal();
+            });
+
+            // Manejar clicks fuera del dropdown
+            $(document).on('click', function(e) {
+                if (!$(e.target).closest('.dropdown').length) {
+                    $('#clientesDropdown').removeClass('show');
+                }
+            });
+        });
+
+        function cargarTipoCambio() {
+            $.get('/Home/ObtenerTipoCambio')
+                .done(function(data) {
+                    if (data.success) {
+                        $('#tipoCambioActual').text('$' + data.tipoCambio.toFixed(4));
+                    }
+                })
+                .fail(function() {
+                    $('#tipoCambioActual').text('Error al cargar');
+                });
+        }
+
+        function agregarConcepto() {
+            conceptoCounter++;
+            const template = document.getElementById('concepto-template');
+            const clone = template.content.cloneNode(true);
+
+            clone.querySelector('.concepto-numero').textContent = conceptoCounter;
+            clone.querySelector('.concepto-item').setAttribute('data-concepto', conceptoCounter);
+
+            document.getElementById('conceptos-container').appendChild(clone);
+        }
+
+        function eliminarConcepto(button) {
+            const conceptoItem = button.closest('.concepto-item');
+            conceptoItem.remove();
+            renumerarConceptos();
+        }
+
+        function renumerarConceptos() {
+            const conceptos = document.querySelectorAll('.concepto-item');
+            conceptos.forEach((concepto, index) => {
+                concepto.querySelector('.concepto-numero').textContent = index + 1;
+                concepto.setAttribute('data-concepto', index + 1);
+            });
+        }
+
+        function cargarClientesPorRFC() {
+            const rfcEmisorId = $('#emisorRFC').val();
+            if (!rfcEmisorId) {
+                $('#clienteBuscar').attr('placeholder', 'Primero seleccione RFC Emisor...')
+                    .val('')
+                    .prop('disabled', true);
+                $('#cliente').val('');
+                $('#clientesDropdown').html('<li><span class="dropdown-item-text text-muted">Primero seleccione RFC Emisor</span></li>');
+                return;
+            }
+
+            $('#clienteBuscar').attr('placeholder', 'Escriba para buscar cliente...')
+                .prop('disabled', false);
+            $('#clientesDropdown').html('<li><span class="dropdown-item-text text-muted">Escriba para buscar...</span></li>');
+        }
+
+        function buscarClientesEnTiempoReal() {
+            const busqueda = $('#clienteBuscar').val();
+            const rfcEmisorId = $('#emisorRFC').val();
+
+            if (!rfcEmisorId) {
+                return;
+            }
+
+            if (busqueda.length < 2) {
+                $('#clientesDropdown').html('<li><span class="dropdown-item-text text-muted">Escriba al menos 2 caracteres...</span></li>');
+                $('#clientesDropdown').removeClass('show');
+                return;
+            }
+
+            const rfcEmisor = $('#emisorRFC option:selected').text().split(' - ')[0].trim();
+
+            $.get('/Home/BuscarClientes', { busqueda: busqueda, rfcEmisor: rfcEmisor })
+                .done(function(data) {
+                    let html = '';
+                    if (data.success && data.clientes.length > 0) {
+                        data.clientes.forEach(cliente => {
+                            html += `<li><a class="dropdown-item" href="#" onclick="seleccionarCliente(${cliente.id_Cliente}, '${cliente.rfcCliente}', '${cliente.razon_Social.replace(/'/g, "\\'")}')">
+                                <strong>${cliente.rfcCliente}</strong><br>
+                                <small class="text-muted">${cliente.razon_Social}</small>
+                            </a></li>`;
+                        });
+                        $('#clientesDropdown').addClass('show');
+                    } else {
+                        html = '<li><span class="dropdown-item-text text-muted">No se encontraron clientes</span></li>';
+                        $('#clientesDropdown').removeClass('show');
+                    }
+                    $('#clientesDropdown').html(html);
+                })
+                .fail(function() {
+                    $('#clientesDropdown').html('<li><span class="dropdown-item-text text-danger">Error al buscar clientes</span></li>');
+                });
+        }
+
+        function seleccionarCliente(id, rfc, razonSocial) {
+            $('#cliente').val(id);
+            $('#clienteBuscar').val(`${rfc} - ${razonSocial}`);
+            $('#clientesDropdown').removeClass('show');
+
+            // Cargar datos adicionales del cliente
+            cargarDatosCliente(id);
+        }
+
+        function cargarProductosPorRFC() {
+            const rfcEmisorId = $('#emisorRFC').val();
+            if (!rfcEmisorId) {
+                $('.producto-servicio').html('<option value="">Primero seleccione RFC Emisor...</option>');
+                return;
+            }
+
+            const rfcEmisor = $('#emisorRFC option:selected').text().split(' - ')[0].trim();
+
+            $.get('/Home/ObtenerProductosPorRFC', { rfc: rfcEmisor })
+                .done(function(data) {
+                    let html = '<option value="">Seleccione producto/servicio...</option>';
+                    if (data.success && data.productos.length > 0) {
+                        data.productos.forEach(producto => {
+                            html += `<option value="${producto.idProdServ}"
+                                        data-clavesat="${producto.clavesat}"
+                                        data-unidadsat="${producto.unidadSAT}"
+                                        data-descripcion="${producto.descripcionInterna}">
+                                        ${producto.codigoInterno} - ${producto.descripcionInterna}
+                                    </option>`;
+                        });
+                    } else {
+                        html = '<option value="">No hay productos para este RFC</option>';
+                    }
+                    $('.producto-servicio').html(html);
+                })
+                .fail(function() {
+                    $('.producto-servicio').html('<option value="">Error al cargar productos</option>');
+                });
+        }
+
+        // Cuando se selecciona un producto, llenar automáticamente descripción
+        $(document).on('change', '.producto-servicio', function() {
+            const selectedOption = $(this).find('option:selected');
+            const descripcion = selectedOption.attr('data-descripcion');
+
+            if (descripcion) {
+                $(this).closest('.concepto-item').find('.descripcion').val(descripcion);
+            }
+        });
+
+        function recopilarDatos() {
+            const datos = {
+                EmisorRFCId: parseInt($('#emisorRFC').val()),
+                ClienteId: parseInt($('#cliente').val()),
+                Serie: $('#serie').val(),
+                Folio: $('#folio').val(),
+                FormaPago: $('#formaPago').val(),
+                UsoCFDI: $('#usoCFDI').val(),
+                Moneda: $('#moneda').val(),
+                TipoIVA: $('#tipoIVA').val(),
+                LugarExpedicion: $('#lugarExpedicion').val(),
+                CondicionesPago: $('#condicionesPago').val(),
+                Observaciones: $('#observaciones').val(),
+                EsRecurrente: true,
+                DiaEjecucion: 1,
+                Conceptos: []
+            };
+
+            $('.concepto-item').each(function(index) {
+                const productoSelect = $(this).find('.producto-servicio option:selected');
+                const concepto = {
+                    Id: index + 1,
+                    ClaveProdServ: productoSelect.attr('data-clavesat') || '',
+                    ClaveUnidad: productoSelect.attr('data-unidadsat') || '',
+                    Descripcion: $(this).find('.descripcion').val(),
+                    CantidadFormula: $(this).find('.cantidad').val(),
+                    ValorUnitarioFormula: $(this).find('.valor-unitario').val(),
+                    ImporteFormula: $(this).find('.cantidad').val() + '*' + $(this).find('.valor-unitario').val(),
+                    Orden: index + 1
+                };
+                datos.Conceptos.push(concepto);
+            });
+
+            return datos;
+        }
+
+        function generarPreview() {
+            const datos = recopilarDatos();
+
+            if (!validarDatos(datos)) {
+                return;
+            }
+
+            $('#resultado-container').html('<div class="text-center"><div class="spinner-border" role="status"></div><br>Generando preview...</div>');
+
+            $.ajax({
+                url: '/Home/GenerarCadenaPreview',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(datos),
+                success: function(response) {
+                    if (response.success) {
+                        $('#resultado-container').html(`
+                            <div class="alert alert-success">
+                                <h6>✅ Cadena Generada Exitosamente</h6>
+                                <hr>
+                                <div style="word-break: break-all; font-family: monospace; font-size: 0.8rem; background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                                    ${response.cadena}
+                                </div>
+                                <hr>
+                                <p class="mb-0">Revise la cadena y use "Generar Factura" para enviar al WebService.</p>
+                            </div>
+                        `);
+                    } else {
+                        $('#resultado-container').html(`
+                            <div class="alert alert-danger">
+                                <h6>❌ Error</h6>
+                                <p class="mb-0">${response.error}</p>
+                            </div>
+                        `);
+                    }
+                },
+                error: function() {
+                    $('#resultado-container').html(`
+                        <div class="alert alert-danger">
+                            <h6>❌ Error de Conexión</h6>
+                            <p class="mb-0">No se pudo generar el preview.</p>
+                        </div>
+                    `);
+                }
+            });
+        }
+
+        function generarVistaPrevia() {
+            const datos = recopilarDatos();
+
+            if (!validarDatos(datos)) {
+                return;
+            }
+
+            $.ajax({
+                url: '/Home/GenerarVistaPrevia',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(datos),
+                success: function(response) {
+                    if (response.success) {
+                        mostrarFacturaPreview(response.factura);
+                        $('#modalVistaPrevia').modal('show');
+                    } else {
+                        alert('Error: ' + response.error);
+                    }
+                },
+                error: function() {
+                    alert('Error de conexión al generar vista previa');
+                }
+            });
+        }
+
+        function mostrarFacturaPreview(factura) {
+            const formatoMoneda = (valor) => new Intl.NumberFormat('es-MX', {
+                style: 'currency',
+                currency: 'MXN'
+            }).format(valor);
+
+            const html = `
+                <div style="max-width: 800px; margin: 0 auto; border: 1px solid #ddd; padding: 30px;">
+                    <!-- Encabezado -->
+                    <div style="display: flex; justify-content: between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #0066cc; padding-bottom: 20px;">
+                        <div style="flex: 1;">
+                            <h1 style="color: #0066cc; margin: 0; font-size: 28px;">FACTURA</h1>
+                            <p style="margin: 5px 0; color: #666;">Comprobante Fiscal Digital</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <h2 style="margin: 0; color: #0066cc;">${factura.seriefolio}</h2>
+                            <p style="margin: 5px 0;">Fecha: ${factura.fecha}</p>
+                            <p style="margin: 5px 0;">Hora: ${factura.hora}</p>
+                        </div>
+                    </div>
+
+                    <!-- Datos del Emisor y Receptor -->
+                    <div style="display: flex; margin-bottom: 30px; gap: 40px;">
+                        <div style="flex: 1;">
+                            <h3 style="color: #0066cc; margin-bottom: 10px; border-bottom: 1px solid #ddd;">EMISOR</h3>
+                            <p style="margin: 5px 0;"><strong>${factura.emisorNombre}</strong></p>
+                            <p style="margin: 5px 0;">RFC: ${factura.emisorRFC}</p>
+                            <p style="margin: 5px 0;">Lugar Expedición: ${factura.emisorLugarExpedicion}</p>
+                        </div>
+                        <div style="flex: 1;">
+                            <h3 style="color: #0066cc; margin-bottom: 10px; border-bottom: 1px solid #ddd;">RECEPTOR</h3>
+                            <p style="margin: 5px 0;"><strong>${factura.receptorNombre}</strong></p>
+                            <p style="margin: 5px 0;">RFC: ${factura.receptorRFC}</p>
+                            <p style="margin: 5px 0;">CP: ${factura.receptorCP}</p>
+                            <p style="margin: 5px 0;">Email: ${factura.receptorEmail || 'N/A'}</p>
+                        </div>
+                    </div>
+
+                    <!-- Datos Fiscales -->
+                    <div style="background: #f8f9fa; padding: 15px; margin-bottom: 20px; border-radius: 5px;">
+                        <div style="display: flex; gap: 30px; flex-wrap: wrap;">
+                            <span><strong>Forma de Pago:</strong> ${factura.formaPago}</span>
+                            <span><strong>Uso CFDI:</strong> ${factura.usoCFDI}</span>
+                            <span><strong>Moneda:</strong> ${factura.moneda}</span>
+                        </div>
+                        ${factura.condicionesPago ? `<p style="margin: 10px 0 0 0;"><strong>Condiciones:</strong> ${factura.condicionesPago}</p>` : ''}
+                    </div>
+
+                    <!-- Conceptos -->
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                        <thead>
+                            <tr style="background: #0066cc; color: white;">
+                                <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Clave</th>
+                                <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Descripción</th>
+                                <th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Unidad</th>
+                                <th style="padding: 12px; text-align: right; border: 1px solid #ddd;">Cantidad</th>
+                                <th style="padding: 12px; text-align: right; border: 1px solid #ddd;">Valor Unit.</th>
+                                <th style="padding: 12px; text-align: right; border: 1px solid #ddd;">Importe</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${factura.conceptos.map(concepto => `
+                                <tr>
+                                    <td style="padding: 10px; border: 1px solid #ddd;">${concepto.claveProdServ}</td>
+                                    <td style="padding: 10px; border: 1px solid #ddd;">${concepto.descripcion}</td>
+                                    <td style="padding: 10px; border: 1px solid #ddd; text-align: center;">${concepto.claveUnidad}</td>
+                                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${concepto.cantidad.toFixed(2)}</td>
+                                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${formatoMoneda(concepto.valorUnitario)}</td>
+                                    <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${formatoMoneda(concepto.importe)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+
+                    <!-- Totales -->
+                    <div style="text-align: right; margin-bottom: 20px;">
+                        <div style="display: inline-block; border: 2px solid #0066cc; padding: 20px; background: #f8f9fa;">
+                            <p style="margin: 5px 0; font-size: 16px;"><strong>Subtotal: ${formatoMoneda(factura.subtotal)}</strong></p>
+                            ${factura.ivaImporte > 0 ? `<p style="margin: 5px 0; font-size: 16px;"><strong>${factura.ivaTexto}: ${formatoMoneda(factura.ivaImporte)}</strong></p>` : ''}
+                            <p style="margin: 5px 0; font-size: 18px; color: #0066cc;"><strong>TOTAL: ${formatoMoneda(factura.total)}</strong></p>
+                        </div>
+                    </div>
+
+                    ${factura.observaciones ? `
+                        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+                            <strong>Observaciones:</strong> ${factura.observaciones}
+                        </div>
+                    ` : ''}
+
+                    <!-- Pie de página -->
+                    <div style="margin-top: 30px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #ddd; padding-top: 15px;">
+                        <p>Este documento es una representación impresa de un CFDI</p>
+                        <p>Generado el ${new Date().toLocaleString('es-MX')}</p>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('facturaPreview').innerHTML = html;
+        }
+
+        function procesarFactura() {
+            const datos = recopilarDatos();
+
+            if (!validarDatos(datos)) {
+                return;
+            }
+
+            if (!confirm('¿Está seguro de que desea generar la factura? Esta acción enviará la solicitud al WebService de facturación.')) {
+                return;
+            }
+
+            $('#resultado-container').html('<div class="text-center"><div class="spinner-border" role="status"></div><br>Procesando factura...</div>');
+
+            $.ajax({
+                url: '/Home/ProcesarFactura',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ Plantilla: datos, Confirmar: true }),
+                success: function(response) {
+                    if (response.success) {
+                        const resultado = response.resultado;
+
+                        if (resultado.exitoso) {
+                            $('#resultado-container').html(`
+                                <div class="alert alert-success">
+                                    <h6>🎉 Factura Generada Exitosamente</h6>
+                                    <hr>
+                                    <p><strong>Respuesta del WebService:</strong></p>
+                                    <div style="font-family: monospace; font-size: 0.8rem; background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                                        ${resultado.respuesta}
+                                    </div>
+                                </div>
+                            `);
+                        } else {
+                            $('#resultado-container').html(`
+                                <div class="alert alert-warning">
+                                    <h6>⚠️ Respuesta del WebService</h6>
+                                    <div style="font-family: monospace; font-size: 0.8rem; background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                                        ${resultado.respuesta}
+                                    </div>
+                                </div>
+                            `);
+                        }
+                    } else {
+                        $('#resultado-container').html(`
+                            <div class="alert alert-danger">
+                                <h6>❌ Error</h6>
+                                <p class="mb-0">${response.error}</p>
+                            </div>
+                        `);
+                    }
+                },
+                error: function() {
+                    $('#resultado-container').html(`
+                        <div class="alert alert-danger">
+                            <h6>❌ Error de Conexión</h6>
+                            <p class="mb-0">No se pudo procesar la factura.</p>
+                        </div>
+                    `);
+                }
+            });
+        }
+
+        function validarDatos(datos) {
+            if (!datos.EmisorRFCId) {
+                alert('Debe seleccionar un RFC Emisor');
+                return false;
+            }
+
+            if (!datos.ClienteId) {
+                alert('Debe seleccionar un cliente');
+                return false;
+            }
+
+            if (!datos.FormaPago || !datos.UsoCFDI || !datos.Moneda) {
+                alert('Debe completar todos los campos obligatorios');
+                return false;
+            }
+
+            if (datos.Conceptos.length === 0) {
+                alert('Debe agregar al menos un concepto');
+                return false;
+            }
+
+            for (let i = 0; i < datos.Conceptos.length; i++) {
+                const concepto = datos.Conceptos[i];
+                if (!concepto.ClaveProdServ || !concepto.ClaveUnidad || !concepto.Descripcion || !concepto.CantidadFormula || !concepto.ValorUnitarioFormula) {
+                    alert(`Debe completar todos los campos del concepto ${i + 1}`);
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        function guardarPlantillaRecurrente() {
+            const datos = recopilarDatos();
+
+            if (!validarDatos(datos)) {
+                return;
+            }
+
+            if (!confirm('¿Desea configurar esta plantilla para facturación recurrente? Se ejecutará automáticamente el día 1 de cada mes.')) {
+                return;
+            }
+
+            $('#resultado-container').html('<div class="text-center"><div class="spinner-border" role="status"></div><br>Configurando facturación recurrente...</div>');
+
+            $.ajax({
+                url: '/Home/GuardarPlantillaRecurrente',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(datos),
+                success: function(response) {
+                    if (response.success) {
+                        $('#resultado-container').html(`
+                            <div class="alert alert-success">
+                                <h6>✅ Plantilla Configurada</h6>
+                                <p>${response.mensaje}</p>
+                                <hr>
+                                <details>
+                                    <summary>Ver cadena que se generará</summary>
+                                    <div style="word-break: break-all; font-family: monospace; font-size: 0.8rem; background: #f8f9fa; padding: 10px; border-radius: 5px; margin-top: 10px;">
+                                        ${response.cadena}
+                                    </div>
+                                </details>
+                            </div>
+                        `);
+                    } else {
+                        $('#resultado-container').html(`
+                            <div class="alert alert-danger">
+                                <h6>❌ Error</h6>
+                                <p class="mb-0">${response.error}</p>
+                            </div>
+                        `);
+                    }
+                },
+                error: function() {
+                    $('#resultado-container').html(`
+                        <div class="alert alert-danger">
+                            <h6>❌ Error de Conexión</h6>
+                            <p class="mb-0">No se pudo configurar la facturación recurrente.</p>
+                        </div>
+                    `);
+                }
+            });
+        }
+
+        function emitirFacturasDelMes() {
+            if (!confirm('¿Desea emitir todas las facturas recurrentes programadas para este mes?')) {
+                return;
+            }
+
+            $('#resultado-container').html('<div class="text-center"><div class="spinner-border" role="status"></div><br>Emitiendo facturas del mes...</div>');
+
+            $.ajax({
+                url: '/Home/EmitirFacturasDelMes',
+                method: 'POST',
+                contentType: 'application/json',
+                success: function(response) {
+                    if (response.success) {
+                        $('#resultado-container').html(`
+                            <div class="alert alert-success">
+                                <h6>📅 Facturas del Mes Procesadas</h6>
+                                <p>${response.mensaje}</p>
+                                <hr>
+                                <ul class="mb-0">
+                                    <li><strong>Procesadas:</strong> ${response.facturasProcesadas}</li>
+                                    <li><strong>Exitosas:</strong> ${response.facturasExitosas}</li>
+                                    <li><strong>Con errores:</strong> ${response.facturasConError}</li>
+                                </ul>
+                            </div>
+                        `);
+                    } else {
+                        $('#resultado-container').html(`
+                            <div class="alert alert-danger">
+                                <h6>❌ Error</h6>
+                                <p class="mb-0">${response.error}</p>
+                            </div>
+                        `);
+                    }
+                },
+                error: function() {
+                    $('#resultado-container').html(`
+                        <div class="alert alert-danger">
+                            <h6>❌ Error de Conexión</h6>
+                            <p class="mb-0">No se pudo procesar las facturas del mes.</p>
+                        </div>
+                    `);
+                }
+            });
+        }
+        // ============ LOAD DATA FUNCTIONS ============
+
+        function cargarDatosEmisor() {
+            const emisorRFCId = $('#emisorRFC').val();
+            if (!emisorRFCId) {
+                $('#lugarExpedicion').val('');
+                return;
+            }
+
+            // Obtener lugar de expedición del RFC seleccionado
+            const emisorTexto = $('#emisorRFC option:selected').text();
+
+            // Extraer datos del emisor (asumiendo formato: "RFC - Razón Social")
+            const partes = emisorTexto.split(' - ');
+            if (partes.length >= 2) {
+                // Buscar lugar de expedición en la base de datos por ID
+                $.get('/Home/ObtenerPropietarioRFCPorId', { id: emisorRFCId })
+                    .done(function(data) {
+                        if (data && data.lugarExpedicion) {
+                            $('#lugarExpedicion').val(data.lugarExpedicion);
+                        } else {
+                            $('#lugarExpedicion').val('06000'); // Default
+                        }
+                    })
+                    .fail(function() {
+                        $('#lugarExpedicion').val('06000'); // Default en caso de error
+                    });
+            }
+        }
+
+        function cargarDatosCliente(clienteId) {
+            if (!clienteId) {
+                $('#codigoPostalCliente').val('');
+                $('#usoCFDI').val('');
+                $('#regimenFiscalCliente').val('');
+                return;
+            }
+
+            $.get('/Home/ObtenerClientePorId', { id: clienteId })
+                .done(function(data) {
+                    if (data && data.success) {
+                        const cliente = data.cliente;
+
+                        // Cargar código postal del cliente
+                        if (cliente.domicilioFiscalCliente) {
+                            $('#codigoPostalCliente').val(cliente.domicilioFiscalCliente);
+                        } else {
+                            $('#codigoPostalCliente').val('06000'); // Default
+                        }
+
+                        // Cargar uso CFDI por defecto (G03 - Gastos en general es común)
+                        if (!$('#usoCFDI').val()) {
+                            $('#usoCFDI').val('G03');
+                        }
+
+                        // Cargar régimen fiscal del cliente si está disponible
+                        if (cliente.regimenFiscalCliente) {
+                            $('#regimenFiscalCliente').val(cliente.regimenFiscalCliente);
+                        } else {
+                            $('#regimenFiscalCliente').val('601'); // Default - Régimen General de Ley Personas Morales
+                        }
+                    }
+                })
+                .fail(function() {
+                    $('#codigoPostalCliente').val('06000'); // Default en caso de error
+                });
+        }
+
+        // ============ WIZARD FUNCTIONS ============
+
+        function siguientePaso() {
+            if (currentStep < totalSteps) {
+                // Validar paso actual antes de continuar
+                if (validarPasoActual()) {
+                    if (currentStep === 1) {
+                        // Al pasar al paso 2, generar automáticamente las vistas previas
+                        generarVistaPreviaWizard();
+                        generarCadenaWizard();
+                    }
+                    currentStep++;
+                    actualizarWizard();
+                }
+            }
+        }
+
+        function anteriorPaso() {
+            if (currentStep > 1) {
+                currentStep--;
+                actualizarWizard();
+            }
+        }
+
+        function validarPasoActual() {
+            switch (currentStep) {
+                case 1:
+                    const datos = recopilarDatos();
+                    return validarDatos(datos);
+                case 2:
+                    return true; // Step 2 es solo vista previa
+                case 3:
+                    return validarProgramacion();
+                default:
+                    return true;
+            }
+        }
+
+        function validarProgramacion() {
+            const nombrePlantilla = $('#nombrePlantilla').val();
+            if (!nombrePlantilla || nombrePlantilla.trim() === '') {
+                alert('Debe especificar un nombre para la plantilla');
+                return false;
+            }
+            return true;
+        }
+
+        function actualizarWizard() {
+            // Actualizar indicadores de paso
+            for (let i = 1; i <= totalSteps; i++) {
+                const indicator = $(`#step${i}-indicator`);
+                if (i < currentStep) {
+                    indicator.removeClass('active').addClass('completed');
+                } else if (i === currentStep) {
+                    indicator.removeClass('completed').addClass('active');
+                } else {
+                    indicator.removeClass('active completed');
+                }
+            }
+
+            // Mostrar/ocultar contenido de pasos
+            $('.wizard-step').removeClass('active');
+            if (currentStep === 1) {
+                $('#formularioFacturacion').show();
+            } else {
+                $('#formularioFacturacion').hide();
+                $(`#step${currentStep}-content`).addClass('active');
+            }
+
+            // Actualizar botones
+            $('#btnAnterior').prop('disabled', currentStep === 1);
+
+            if (currentStep === totalSteps) {
+                $('#btnSiguiente').text('🎉 Finalizar').removeClass('btn-primary').addClass('btn-success');
+            } else {
+                $('#btnSiguiente').text('Siguiente ➡️').removeClass('btn-success').addClass('btn-primary');
+            }
+        }
+
+        function generarVistaPreviaWizard() {
+            const datos = recopilarDatos();
+            if (!validarDatos(datos)) {
+                return;
+            }
+
+            $('#vistaPrevia-html').html('<div class="text-center"><div class="spinner-border" role="status"></div><br>Generando vista previa...</div>');
+
+            $.ajax({
+                url: '/Home/GenerarVistaPrevia',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(datos),
+                success: function(response) {
+                    if (response.success) {
+                        const htmlContent = mostrarFacturaPreviewInline(response.factura);
+                        $('#vistaPrevia-html').html(htmlContent);
+                    } else {
+                        $('#vistaPrevia-html').html(`<div class="alert alert-danger">Error: ${response.error}</div>`);
+                    }
+                },
+                error: function() {
+                    $('#vistaPrevia-html').html('<div class="alert alert-danger">Error de conexión</div>');
+                }
+            });
+        }
+
+        function generarCadenaWizard() {
+            const datos = recopilarDatos();
+            if (!validarDatos(datos)) {
+                return;
+            }
+
+            $('#vistaPrevia-cadena').html('<div class="text-center"><div class="spinner-border" role="status"></div><br>Generando cadena...</div>');
+
+            $.ajax({
+                url: '/Home/GenerarCadenaPreview',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(datos),
+                success: function(response) {
+                    if (response.success) {
+                        const cadenaFormatted = response.cadena.replace(/\|/g, '|<br>');
+                        $('#vistaPrevia-cadena').html(`
+                            <div class="alert alert-success">
+                                <h6>✅ Cadena Generada</h6>
+                                <div style="font-family: monospace; font-size: 0.8rem; background: #f8f9fa; padding: 10px; border-radius: 5px; word-break: break-all;">
+                                    ${cadenaFormatted}
+                                </div>
+                            </div>
+                        `);
+                    } else {
+                        $('#vistaPrevia-cadena').html(`<div class="alert alert-danger">Error: ${response.error}</div>`);
+                    }
+                },
+                error: function() {
+                    $('#vistaPrevia-cadena').html('<div class="alert alert-danger">Error de conexión</div>');
+                }
+            });
+        }
+
+        function mostrarFacturaPreviewInline(factura) {
+            const formatoMoneda = (valor) => new Intl.NumberFormat('es-MX', {
+                style: 'currency',
+                currency: 'MXN'
+            }).format(valor);
+
+            return `
+                <div style="max-width: 100%; margin: 0 auto; border: 1px solid #ddd; padding: 20px; font-size: 0.85rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #0066cc; padding-bottom: 15px;">
+                        <div>
+                            <h4 style="color: #0066cc; margin: 0;">FACTURA</h4>
+                            <p style="margin: 5px 0; color: #666; font-size: 0.8rem;">Comprobante Fiscal Digital</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <h5 style="margin: 0; color: #0066cc;">${factura.seriefolio}</h5>
+                            <p style="margin: 5px 0; font-size: 0.8rem;">Fecha: ${factura.fecha}</p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; margin-bottom: 20px; gap: 30px;">
+                        <div style="flex: 1;">
+                            <h6 style="color: #0066cc; margin-bottom: 8px;">EMISOR</h6>
+                            <p style="margin: 3px 0; font-weight: bold;">${factura.emisorNombre}</p>
+                            <p style="margin: 3px 0; font-size: 0.8rem;">RFC: ${factura.emisorRFC}</p>
+                        </div>
+                        <div style="flex: 1;">
+                            <h6 style="color: #0066cc; margin-bottom: 8px;">RECEPTOR</h6>
+                            <p style="margin: 3px 0; font-weight: bold;">${factura.receptorNombre}</p>
+                            <p style="margin: 3px 0; font-size: 0.8rem;">RFC: ${factura.receptorRFC}</p>
+                        </div>
+                    </div>
+
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.8rem;">
+                        <thead>
+                            <tr style="background: #0066cc; color: white;">
+                                <th style="padding: 8px; border: 1px solid #ddd;">Descripción</th>
+                                <th style="padding: 8px; border: 1px solid #ddd;">Cant.</th>
+                                <th style="padding: 8px; border: 1px solid #ddd;">Precio Unit.</th>
+                                <th style="padding: 8px; border: 1px solid #ddd;">Importe</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${factura.conceptos.map(concepto => `
+                                <tr>
+                                    <td style="padding: 8px; border: 1px solid #ddd;">${concepto.descripcion}</td>
+                                    <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">${concepto.cantidad}</td>
+                                    <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${formatoMoneda(concepto.valorUnitario)}</td>
+                                    <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${formatoMoneda(concepto.importe)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+
+                    <div style="text-align: right; margin-bottom: 15px;">
+                        <div style="display: inline-block; border: 2px solid #0066cc; padding: 15px; background: #f8f9fa;">
+                            <p style="margin: 3px 0; font-size: 0.9rem;"><strong>Subtotal: ${formatoMoneda(factura.subtotal)}</strong></p>
+                            ${factura.ivaImporte > 0 ? `<p style="margin: 3px 0; font-size: 0.9rem;"><strong>${factura.ivaTexto}: ${formatoMoneda(factura.ivaImporte)}</strong></p>` : ''}
+                            <p style="margin: 3px 0; font-size: 1rem; color: #0066cc;"><strong>TOTAL: ${formatoMoneda(factura.total)}</strong></p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function verPlantillasGuardadas() {
+            // TODO: Implementar modal para mostrar plantillas guardadas
+            alert('Funcionalidad de plantillas guardadas en desarrollo');
+        }
+
+        function guardarPlantillaFinal() {
+            // TODO: Implementar guardado final de plantilla
+            const datos = recopilarDatosCompletos();
+            console.log('Guardando plantilla:', datos);
+            alert('Plantilla guardada exitosamente! (Funcionalidad en desarrollo)');
+        }
+
+        function crearNuevaPlantilla() {
+            location.reload();
+        }
+
+        function recopilarDatosCompletos() {
+            const datosBasicos = recopilarDatos();
+
+            // Agregar datos de programación
+            datosBasicos.Nombre = $('#nombrePlantilla').val();
+            datosBasicos.TipoProgramacion = $('input[name="tipoProgramacion"]:checked').val();
+            datosBasicos.DiaEjecucion = $('#diaEjecucion').val();
+            datosBasicos.DiaSemana = $('#diaSemana').val();
+            datosBasicos.IntervaloEjecucion = $('#intervaloSemanas').val();
+
+            return datosBasicos;
+        }
+
+        // Manejar cambios en tipo de programación
+        $(document).on('change', 'input[name="tipoProgramacion"]', function() {
+            const tipo = $(this).val();
+            if (tipo === 'DiaMes') {
+                $('#opcionesDiaMes').show();
+                $('#opcionesDiaSemana').hide();
+            } else {
+                $('#opcionesDiaMes').hide();
+                $('#opcionesDiaSemana').show();
+            }
+        });
+
+        // Inicializar wizard en documento ready
+        $(document).ready(function() {
+            actualizarWizard();
+        });
+
+    </script>
+}
