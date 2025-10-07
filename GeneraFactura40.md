@@ -52,8 +52,10 @@ DatosGenerales~Concepto1~Concepto2~...~ConceptoN
 5. Cantidad
 6. Descripción
 7. Valor Unitario
-8. Importe
-9. Número de Pedimento (15 dígitos, opcional)
+8. Importe (Subtotal sin IVA)
+9. IVA (Monto del impuesto)
+10. Total (Importe + IVA)
+11. Número de Pedimento (15 dígitos, opcional)
 
 #### Respuesta Exitosa
 
@@ -112,7 +114,13 @@ El servicio calcula automáticamente:
 
 ```
 Serie-Folio|01|XAXX010101000|PUBLICO EN GENERAL|MEX|S01|correo@ejemplo.com|RFC_EMISOR|12345|MXN|Contado|I|||601|12345~
-1|01010101|H87|0|1|Producto ejemplo|100.00|100.00|
+1|01010101|H87|0|1|Producto ejemplo|100.00|100.00|16.00|116.00|
+```
+
+**Ejemplo con tu cadena real:**
+```
+B-2001709|03|PUE|XAXX010101000|PUBLICO EN GENERAL|MEX|S01||JNO120717PT2|05120|MXN|||I|||616|05120~
+J00191-01-18-H|54101512|EA||1|HALF PE ARO OB Y DB 0.9QTS|7758.62|7758.62|1241.38|9000.00
 ```
 
 Esta documentación describe el WebService para la generación de facturas CFDI 4.0 disponible en `GeneraFactura40.asmx`.

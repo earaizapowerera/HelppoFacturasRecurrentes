@@ -69,10 +69,30 @@ namespace FacturacionRecurrente.Services
                 var valorUnitario = await _comodinService.EvaluarFormula(concepto.ValorUnitarioFormula, cliente);
                 var importe = cantidad * valorUnitario;
 
+                // Calcular IVA según el tipo configurado
+                decimal iva = 0;
+                decimal totalConcepto = importe;
+
+                switch (plantilla.TipoIVA)
+                {
+                    case "ConIVA":
+                        iva = importe * 0.16m; // 16% IVA
+                        totalConcepto = importe + iva;
+                        break;
+                    case "IVA0":
+                        iva = 0;
+                        totalConcepto = importe;
+                        break;
+                    case "SinIVA":
+                        iva = 0;
+                        totalConcepto = importe;
+                        break;
+                }
+
                 // Procesar descripción con comodines
                 var descripcion = await _comodinService.ProcesarComodines(concepto.Descripcion, cliente, emisor.RFC, serie);
 
-                // Construir cadena del concepto
+                // Construir cadena del concepto con IVA
                 var conceptoCadena = string.Join("|",
                     concepto.Id.ToString(), // Identificador
                     concepto.ClaveProdServ, // ClaveProdServ
@@ -81,12 +101,14 @@ namespace FacturacionRecurrente.Services
                     cantidad.ToString("F2"), // Cantidad
                     descripcion, // Descripción
                     valorUnitario.ToString("F2"), // Valor Unitario
-                    importe.ToString("F2"), // Importe
-                    "" // Número de Pedimento
+                    importe.ToString("F2"), // Importe (subtotal)
+                    iva.ToString("F2"), // IVA
+                    totalConcepto.ToString("F2"), // Total con IVA
+                    "" // Número de Pedimento (opcional)
                 );
 
                 conceptosCadena.Add(conceptoCadena);
-                totalFactura += importe;
+                totalFactura += totalConcepto; // Acumular el total con IVA
             }
 
             // Construir cadena final
