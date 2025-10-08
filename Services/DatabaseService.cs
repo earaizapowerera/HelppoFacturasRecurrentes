@@ -1,5 +1,5 @@
 using System.Data;
-using System.Data.SqlClient;
+using Microsoft.Data.SqlClient;
 using FacturacionRecurrente.Models;
 
 namespace FacturacionRecurrente.Services
@@ -11,6 +11,11 @@ namespace FacturacionRecurrente.Services
         public DatabaseService(IConfiguration configuration)
         {
             _connectionString = "Server=helppo.com.mx;Database=helppo;User Id=uhelppo;Password=H3lpp0;TrustServerCertificate=true;Connection Timeout=30;";
+        }
+
+        public SqlConnection GetConnection()
+        {
+            return new SqlConnection(_connectionString);
         }
 
         public async Task<List<Cliente>> ObtenerClientes(string? filtroRFC = null)

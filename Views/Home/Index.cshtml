@@ -365,6 +365,19 @@
                                        placeholder="Ej: Facturación Todini Mensual" required>
                                 <small class="text-muted">Este nombre te ayudará a identificar la plantilla</small>
                             </div>
+
+                            <div class="alert alert-info">
+                                <strong>📌 Nota:</strong> La plantilla se guardará y se ejecutará automáticamente según la programación seleccionada.
+                            </div>
+
+                            <div class="d-flex justify-content-between mt-3">
+                                <button type="button" class="btn btn-success btn-lg" onclick="guardarPlantillaRecurrente()">
+                                    💾 Guardar Plantilla Recurrente
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="verPlantillasGuardadas()">
+                                    📋 Ver Plantillas Guardadas
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -947,17 +960,44 @@
         }
 
         function guardarPlantillaRecurrente() {
+            // Recopilar datos básicos
             const datos = recopilarDatos();
+
+            // Agregar nombre de la plantilla
+            const nombrePlantilla = $('#nombrePlantilla').val();
+            if (!nombrePlantilla) {
+                alert('Debe ingresar un nombre para la plantilla');
+                return;
+            }
+            datos.Nombre = nombrePlantilla;
+
+            // Agregar configuración de programación
+            const tipoProgramacion = $('input[name="tipoProgramacion"]:checked').val();
+            datos.TipoProgramacion = tipoProgramacion;
+            datos.EsRecurrente = true;
+            datos.Activa = true;
+
+            if (tipoProgramacion === 'DiaMes') {
+                datos.DiaEjecucion = parseInt($('#diaEjecucion').val());
+                datos.IntervaloEjecucion = 1; // Cada mes
+            } else if (tipoProgramacion === 'DiaSemana') {
+                datos.DiaSemana = $('#diaSemana').val();
+                datos.IntervaloEjecucion = parseInt($('#intervaloSemanas').val());
+            }
 
             if (!validarDatos(datos)) {
                 return;
             }
 
-            if (!confirm('¿Desea configurar esta plantilla para facturación recurrente? Se ejecutará automáticamente el día 1 de cada mes.')) {
+            const mensaje = tipoProgramacion === 'DiaMes'
+                ? `¿Desea guardar esta plantilla? Se ejecutará automáticamente el día ${datos.DiaEjecucion} de cada mes.`
+                : `¿Desea guardar esta plantilla? Se ejecutará automáticamente cada ${datos.DiaSemana}.`;
+
+            if (!confirm(mensaje)) {
                 return;
             }
 
-            $('#resultado-container').html('<div class="text-center"><div class="spinner-border" role="status"></div><br>Configurando facturación recurrente...</div>');
+            $('#resultado-container').html('<div class="text-center"><div class="spinner-border" role="status"></div><br>Guardando plantilla recurrente...</div>');
 
             $.ajax({
                 url: '/Home/GuardarPlantillaRecurrente',
@@ -1325,6 +1365,10 @@
             const datos = recopilarDatosCompletos();
             console.log('Guardando plantilla:', datos);
             alert('Plantilla guardada exitosamente! (Funcionalidad en desarrollo)');
+        }
+
+        function verPlantillasGuardadas() {
+            window.location.href = '/Home/Plantillas';
         }
 
         function crearNuevaPlantilla() {

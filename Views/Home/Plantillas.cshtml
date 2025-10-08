@@ -1,0 +1,329 @@
+@{
+    ViewData["Title"] = "Gestión de Plantillas Recurrentes";
+}
+
+<style>
+    .plantilla-card {
+        transition: transform 0.2s;
+        cursor: pointer;
+    }
+    .plantilla-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    .estado-activo {
+        color: #28a745;
+        font-weight: bold;
+    }
+    .estado-inactivo {
+        color: #dc3545;
+        font-weight: bold;
+    }
+    .proxima-ejecucion {
+        background-color: #f8f9fa;
+        border-left: 3px solid #007bff;
+        padding: 10px;
+        margin: 10px 0;
+    }
+</style>
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>📋 Plantillas de Facturación Recurrente</h2>
+                <div>
+                    <button class="btn btn-primary" onclick="window.location.href='/'">
+                        ➕ Nueva Plantilla
+                    </button>
+                    <button class="btn btn-success" onclick="ejecutarFacturacionManual()">
+                        ⚡ Ejecutar Facturación del Mes
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filtros -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label">Estado</label>
+                            <select class="form-select" id="filtroEstado" onchange="filtrarPlantillas()">
+                                <option value="">Todos</option>
+                                <option value="activo">Activas</option>
+                                <option value="inactivo">Inactivas</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Emisor</label>
+                            <select class="form-select" id="filtroEmisor" onchange="filtrarPlantillas()">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Cliente</label>
+                            <input type="text" class="form-control" id="filtroCliente" placeholder="Buscar por nombre o RFC" onkeyup="filtrarPlantillas()">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Tipo Programación</label>
+                            <select class="form-select" id="filtroProgramacion" onchange="filtrarPlantillas()">
+                                <option value="">Todos</option>
+                                <option value="DiaMes">Día del mes</option>
+                                <option value="DiaSemana">Día de la semana</option>
+                                <option value="Quincenal">Quincenal</option>
+                                <option value="Mensual">Mensual</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lista de Plantillas -->
+            <div id="listaPlantillas" class="row">
+                <!-- Las plantillas se cargarán dinámicamente aquí -->
+            </div>
+
+            <!-- Modal para Editar Plantilla -->
+            <div class="modal fade" id="modalEditarPlantilla" tabindex="-1">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">✏️ Editar Plantilla</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="formularioEdicion">
+                                <!-- El formulario se cargará dinámicamente -->
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary" onclick="guardarCambiosPlantilla()">
+                                💾 Guardar Cambios
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal de Historial -->
+            <div class="modal fade" id="modalHistorial" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">📊 Historial de Ejecuciones</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="historialContent">
+                                <!-- El historial se cargará dinámicamente -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    $(document).ready(function() {
+        cargarPlantillas();
+        cargarEmisores();
+    });
+
+    function cargarPlantillas() {
+        $.get('/Home/ObtenerPlantillas')
+            .done(function(response) {
+                if (response.success) {
+                    mostrarPlantillas(response.plantillas);
+                } else {
+                    $('#listaPlantillas').html('<div class="col-12"><div class="alert alert-warning">No se pudieron cargar las plantillas</div></div>');
+                }
+            })
+            .fail(function() {
+                $('#listaPlantillas').html('<div class="col-12"><div class="alert alert-danger">Error al conectar con el servidor</div></div>');
+            });
+    }
+
+    function mostrarPlantillas(plantillas) {
+        if (!plantillas || plantillas.length === 0) {
+            $('#listaPlantillas').html(`
+                <div class="col-12">
+                    <div class="alert alert-info text-center">
+                        <h5>📭 No hay plantillas configuradas</h5>
+                        <p>Cree su primera plantilla de facturación recurrente</p>
+                        <button class="btn btn-primary" onclick="window.location.href='/'">
+                            ➕ Crear Primera Plantilla
+                        </button>
+                    </div>
+                </div>
+            `);
+            return;
+        }
+
+        let html = '';
+        plantillas.forEach(function(plantilla) {
+            const estadoClase = plantilla.activa ? 'estado-activo' : 'estado-inactivo';
+            const estadoTexto = plantilla.activa ? 'ACTIVA' : 'INACTIVA';
+            const proximaEjecucion = plantilla.proximaEjecucion ? new Date(plantilla.proximaEjecucion).toLocaleDateString() : 'No programada';
+
+            html += `
+                <div class="col-md-6 col-lg-4 mb-3 plantilla-item"
+                     data-estado="${plantilla.activa ? 'activo' : 'inactivo'}"
+                     data-emisor="${plantilla.emisorRFC}"
+                     data-cliente="${plantilla.clienteNombre} ${plantilla.clienteRFC}"
+                     data-programacion="${plantilla.tipoProgramacion}">
+                    <div class="card plantilla-card">
+                        <div class="card-header bg-light">
+                            <div class="d-flex justify-content-between">
+                                <h6 class="mb-0">${plantilla.nombre}</h6>
+                                <span class="${estadoClase}">${estadoTexto}</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2"><strong>Cliente:</strong> ${plantilla.clienteNombre}</p>
+                            <p class="mb-2"><strong>RFC:</strong> ${plantilla.clienteRFC}</p>
+                            <p class="mb-2"><strong>Emisor:</strong> ${plantilla.emisorRFC}</p>
+                            <p class="mb-2"><strong>Serie:</strong> ${plantilla.serie || 'N/A'}</p>
+
+                            <div class="proxima-ejecucion">
+                                <small><strong>Próxima Ejecución:</strong></small><br>
+                                <span>${proximaEjecucion}</span><br>
+                                <small class="text-muted">${describeProgramacion(plantilla)}</small>
+                            </div>
+
+                            <div class="mt-3 d-flex justify-content-between">
+                                <button class="btn btn-sm btn-primary" onclick="editarPlantilla(${plantilla.id})">
+                                    ✏️ Editar
+                                </button>
+                                <button class="btn btn-sm btn-info" onclick="verHistorial(${plantilla.id})">
+                                    📊 Historial
+                                </button>
+                                <button class="btn btn-sm ${plantilla.activa ? 'btn-danger' : 'btn-success'}"
+                                        onclick="toggleEstado(${plantilla.id}, ${plantilla.activa})">
+                                    ${plantilla.activa ? '⏸️ Pausar' : '▶️ Activar'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        $('#listaPlantillas').html(html);
+    }
+
+    function describeProgramacion(plantilla) {
+        if (plantilla.tipoProgramacion === 'DiaMes') {
+            return `Día ${plantilla.diaEjecucion} de cada mes`;
+        } else if (plantilla.tipoProgramacion === 'DiaSemana') {
+            const intervalo = plantilla.intervaloEjecucion === 1 ? 'Cada' : `Cada ${plantilla.intervaloEjecucion}`;
+            return `${intervalo} ${plantilla.diaSemana}`;
+        } else if (plantilla.tipoProgramacion === 'Quincenal') {
+            return 'Días 1 y 15 de cada mes';
+        } else if (plantilla.tipoProgramacion === 'Mensual') {
+            return 'Primer día de cada mes';
+        }
+        return 'No definido';
+    }
+
+    function filtrarPlantillas() {
+        const estado = $('#filtroEstado').val();
+        const emisor = $('#filtroEmisor').val();
+        const cliente = $('#filtroCliente').val().toLowerCase();
+        const programacion = $('#filtroProgramacion').val();
+
+        $('.plantilla-item').each(function() {
+            const item = $(this);
+            let mostrar = true;
+
+            if (estado && item.data('estado') !== estado) mostrar = false;
+            if (emisor && item.data('emisor') !== emisor) mostrar = false;
+            if (cliente && !item.data('cliente').toLowerCase().includes(cliente)) mostrar = false;
+            if (programacion && item.data('programacion') !== programacion) mostrar = false;
+
+            item.toggle(mostrar);
+        });
+    }
+
+    function editarPlantilla(id) {
+        $.get('/Home/ObtenerPlantilla', { id: id })
+            .done(function(response) {
+                if (response.success) {
+                    mostrarFormularioEdicion(response.plantilla);
+                    $('#modalEditarPlantilla').modal('show');
+                }
+            });
+    }
+
+    function mostrarFormularioEdicion(plantilla) {
+        // Aquí cargarías el formulario de edición con los datos de la plantilla
+        $('#formularioEdicion').html(`
+            <p>Editando plantilla: ${plantilla.nombre}</p>
+            <p class="text-muted">Funcionalidad completa en desarrollo...</p>
+        `);
+    }
+
+    function verHistorial(id) {
+        $.get('/Home/ObtenerHistorialPlantilla', { id: id })
+            .done(function(response) {
+                if (response.success) {
+                    mostrarHistorial(response.historial);
+                    $('#modalHistorial').modal('show');
+                }
+            });
+    }
+
+    function mostrarHistorial(historial) {
+        if (!historial || historial.length === 0) {
+            $('#historialContent').html('<p class="text-muted">No hay ejecuciones registradas</p>');
+            return;
+        }
+
+        let html = '<div class="table-responsive"><table class="table table-sm"><thead><tr>';
+        html += '<th>Fecha</th><th>UUID</th><th>Total</th><th>Estado</th></tr></thead><tbody>';
+
+        historial.forEach(function(item) {
+            const estado = item.exitosa ? '<span class="badge bg-success">Exitosa</span>' : '<span class="badge bg-danger">Error</span>';
+            html += `<tr>
+                <td>${new Date(item.fechaGeneracion).toLocaleString()}</td>
+                <td>${item.uuid || 'N/A'}</td>
+                <td>$${item.total.toFixed(2)}</td>
+                <td>${estado}</td>
+            </tr>`;
+        });
+
+        html += '</tbody></table></div>';
+        $('#historialContent').html(html);
+    }
+
+    function toggleEstado(id, estadoActual) {
+        const accion = estadoActual ? 'pausar' : 'activar';
+        if (!confirm(`¿Desea ${accion} esta plantilla?`)) return;
+
+        $.post('/Home/ToggleEstadoPlantilla', { id: id })
+            .done(function(response) {
+                if (response.success) {
+                    cargarPlantillas();
+                }
+            });
+    }
+
+    function ejecutarFacturacionManual() {
+        if (!confirm('¿Desea ejecutar ahora todas las facturas programadas para este mes?')) return;
+
+        $.post('/Home/EjecutarFacturacionManual')
+            .done(function(response) {
+                alert(response.mensaje || 'Proceso completado');
+                cargarPlantillas();
+            });
+    }
+
+    function cargarEmisores() {
+        // Cargar lista de emisores para el filtro
+        // Por ahora dejamos vacío, se implementará con los datos reales
+    }
+</script>
+}

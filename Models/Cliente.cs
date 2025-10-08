@@ -58,6 +58,79 @@ namespace FacturacionRecurrente.Models
         public int IntervaloEjecucion { get; set; } = 1; // Cada X días/semanas
         public string DiaSemana { get; set; } = "Martes"; // Para programación semanal
         public List<ConceptoPlantilla> Conceptos { get; set; } = new();
+
+        public DateTime CalcularProximaEjecucion()
+        {
+            var ahora = DateTime.Now;
+            DateTime proximaFecha;
+
+            switch (TipoProgramacion)
+            {
+                case "DiaMes":
+                    // Próximo mes en el día especificado
+                    proximaFecha = ahora.AddMonths(IntervaloEjecucion);
+                    var dia = Math.Min(DiaEjecucion, DateTime.DaysInMonth(proximaFecha.Year, proximaFecha.Month));
+                    proximaFecha = new DateTime(proximaFecha.Year, proximaFecha.Month, dia);
+                    break;
+
+                case "Mensual":
+                    // Primer día del próximo mes
+                    proximaFecha = ahora.AddMonths(IntervaloEjecucion);
+                    proximaFecha = new DateTime(proximaFecha.Year, proximaFecha.Month, 1);
+                    break;
+
+                case "Quincenal":
+                    // Día 1 o 15 del mes
+                    if (ahora.Day < 15)
+                        proximaFecha = new DateTime(ahora.Year, ahora.Month, 15);
+                    else
+                    {
+                        proximaFecha = ahora.AddMonths(1);
+                        proximaFecha = new DateTime(proximaFecha.Year, proximaFecha.Month, 1);
+                    }
+                    break;
+
+                case "DiaSemana":
+                    // Próxima ocurrencia del día de la semana especificado
+                    var diasSemana = new Dictionary<string, DayOfWeek>
+                    {
+                        { "Lunes", DayOfWeek.Monday },
+                        { "Martes", DayOfWeek.Tuesday },
+                        { "Miércoles", DayOfWeek.Wednesday },
+                        { "Jueves", DayOfWeek.Thursday },
+                        { "Viernes", DayOfWeek.Friday },
+                        { "Sábado", DayOfWeek.Saturday },
+                        { "Domingo", DayOfWeek.Sunday }
+                    };
+
+                    if (diasSemana.TryGetValue(DiaSemana, out var targetDay))
+                    {
+                        proximaFecha = ahora.AddDays(1); // Empezar desde mañana
+                        while (proximaFecha.DayOfWeek != targetDay)
+                        {
+                            proximaFecha = proximaFecha.AddDays(1);
+                        }
+                        // Si el intervalo es mayor a 1, agregar semanas adicionales
+                        if (IntervaloEjecucion > 1)
+                        {
+                            proximaFecha = proximaFecha.AddDays(7 * (IntervaloEjecucion - 1));
+                        }
+                    }
+                    else
+                    {
+                        proximaFecha = ahora.AddDays(7); // Default: próxima semana
+                    }
+                    break;
+
+                default:
+                    // Default: próximo mes, día 1
+                    proximaFecha = ahora.AddMonths(1);
+                    proximaFecha = new DateTime(proximaFecha.Year, proximaFecha.Month, 1);
+                    break;
+            }
+
+            return proximaFecha;
+        }
     }
 
     public class ConceptoPlantilla
