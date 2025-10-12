@@ -21,6 +21,12 @@ namespace FacturacionRecurrente.Controllers
 
         public async Task<IActionResult> Index()
         {
+            // Redirigir a la página de Plantillas como página principal
+            return RedirectToAction("Plantillas");
+        }
+
+        public async Task<IActionResult> NuevaFactura()
+        {
             try
             {
                 ViewBag.PropietariosRFC = await _databaseService.ObtenerPropietariosRFC();
@@ -48,7 +54,7 @@ namespace FacturacionRecurrente.Controllers
                 ViewBag.DatabaseErrorMessage = "⚠️ Sin conexión a base de datos. Verifique la conectividad de red.";
             }
 
-            return View();
+            return View("Index");
         }
 
         [HttpPost]
@@ -360,6 +366,133 @@ namespace FacturacionRecurrente.Controllers
             }
         }
 
+        [HttpPost]
+        public async Task<IActionResult> ActualizarPlantillaRecurrente([FromBody] PlantillaFacturacion plantilla)
+        {
+            try
+            {
+                if (plantilla.Id <= 0)
+                {
+                    return Json(new { success = false, error = "ID de plantilla no válido" });
+                }
+
+                using var connection = _databaseService.GetConnection();
+                await connection.OpenAsync();
+                using var transaction = connection.BeginTransaction();
+
+                try
+                {
+                    // Actualizar plantilla principal
+                    var updatePlantillaCmd = new SqlCommand(@"
+                        UPDATE PlantillasFacturacion SET
+                            Nombre = @Nombre,
+                            ClienteId = @ClienteId,
+                            EmisorRFCId = @EmisorRFCId,
+                            Serie = @Serie,
+                            Folio = @Folio,
+                            FormaPago = @FormaPago,
+                            UsoCFDI = @UsoCFDI,
+                            LugarExpedicion = @LugarExpedicion,
+                            Moneda = @Moneda,
+                            TipoIVA = @TipoIVA,
+                            CondicionesPago = @CondicionesPago,
+                            Observaciones = @Observaciones,
+                            Activa = @Activa,
+                            EsRecurrente = @EsRecurrente,
+                            TipoProgramacion = @TipoProgramacion,
+                            DiaEjecucion = @DiaEjecucion,
+                            DiaSemana = @DiaSemana,
+                            IntervaloEjecucion = @IntervaloEjecucion,
+                            ProximaEjecucion = @ProximaEjecucion,
+                            FechaActualizacion = GETDATE()
+                        WHERE Id = @Id", connection, transaction);
+
+                    updatePlantillaCmd.Parameters.AddWithValue("@Id", plantilla.Id);
+                    updatePlantillaCmd.Parameters.AddWithValue("@Nombre", plantilla.Nombre ?? "Plantilla " + DateTime.Now.ToString("yyyyMMdd"));
+                    updatePlantillaCmd.Parameters.AddWithValue("@ClienteId", plantilla.ClienteId);
+                    updatePlantillaCmd.Parameters.AddWithValue("@EmisorRFCId", plantilla.EmisorRFCId);
+                    updatePlantillaCmd.Parameters.AddWithValue("@Serie", (object)plantilla.Serie ?? DBNull.Value);
+                    updatePlantillaCmd.Parameters.AddWithValue("@Folio", (object)plantilla.Folio ?? DBNull.Value);
+                    updatePlantillaCmd.Parameters.AddWithValue("@FormaPago", plantilla.FormaPago);
+                    updatePlantillaCmd.Parameters.AddWithValue("@UsoCFDI", plantilla.UsoCFDI);
+                    updatePlantillaCmd.Parameters.AddWithValue("@LugarExpedicion", plantilla.LugarExpedicion);
+                    updatePlantillaCmd.Parameters.AddWithValue("@Moneda", plantilla.Moneda);
+                    updatePlantillaCmd.Parameters.AddWithValue("@TipoIVA", plantilla.TipoIVA ?? "ConIVA");
+                    updatePlantillaCmd.Parameters.AddWithValue("@CondicionesPago", (object)plantilla.CondicionesPago ?? DBNull.Value);
+                    updatePlantillaCmd.Parameters.AddWithValue("@Observaciones", (object)plantilla.Observaciones ?? DBNull.Value);
+                    updatePlantillaCmd.Parameters.AddWithValue("@Activa", plantilla.Activa);
+                    updatePlantillaCmd.Parameters.AddWithValue("@EsRecurrente", plantilla.EsRecurrente);
+                    updatePlantillaCmd.Parameters.AddWithValue("@TipoProgramacion", plantilla.TipoProgramacion ?? "DiaMes");
+                    updatePlantillaCmd.Parameters.AddWithValue("@DiaEjecucion", plantilla.DiaEjecucion > 0 ? plantilla.DiaEjecucion : 1);
+                    updatePlantillaCmd.Parameters.AddWithValue("@DiaSemana", (object)plantilla.DiaSemana ?? DBNull.Value);
+                    updatePlantillaCmd.Parameters.AddWithValue("@IntervaloEjecucion", plantilla.IntervaloEjecucion > 0 ? plantilla.IntervaloEjecucion : 1);
+                    updatePlantillaCmd.Parameters.AddWithValue("@ProximaEjecucion", plantilla.CalcularProximaEjecucion());
+
+                    await updatePlantillaCmd.ExecuteNonQueryAsync();
+
+                    // Eliminar conceptos anteriores
+                    var deleteConceptosCmd = new SqlCommand(
+                        "DELETE FROM ConceptosPlantilla WHERE PlantillaId = @PlantillaId",
+                        connection, transaction);
+                    deleteConceptosCmd.Parameters.AddWithValue("@PlantillaId", plantilla.Id);
+                    await deleteConceptosCmd.ExecuteNonQueryAsync();
+
+                    // Insertar nuevos conceptos
+                    if (plantilla.Conceptos != null && plantilla.Conceptos.Count > 0)
+                    {
+                        int orden = 1;
+                        foreach (var concepto in plantilla.Conceptos)
+                        {
+                            var insertConceptoCmd = new SqlCommand(@"
+                                INSERT INTO ConceptosPlantilla (
+                                    PlantillaId, ClaveProdServ, ClaveUnidad, CantidadFormula,
+                                    Descripcion, ValorUnitarioFormula, ImporteFormula, Orden
+                                ) VALUES (
+                                    @PlantillaId, @ClaveProdServ, @ClaveUnidad, @CantidadFormula,
+                                    @Descripcion, @ValorUnitarioFormula, @ImporteFormula, @Orden
+                                )", connection, transaction);
+
+                            insertConceptoCmd.Parameters.AddWithValue("@PlantillaId", plantilla.Id);
+                            insertConceptoCmd.Parameters.AddWithValue("@ClaveProdServ", concepto.ClaveProdServ);
+                            insertConceptoCmd.Parameters.AddWithValue("@ClaveUnidad", concepto.ClaveUnidad);
+                            insertConceptoCmd.Parameters.AddWithValue("@CantidadFormula", concepto.CantidadFormula ?? "1");
+                            insertConceptoCmd.Parameters.AddWithValue("@Descripcion", concepto.Descripcion);
+                            insertConceptoCmd.Parameters.AddWithValue("@ValorUnitarioFormula", concepto.ValorUnitarioFormula ?? "0");
+                            insertConceptoCmd.Parameters.AddWithValue("@ImporteFormula", concepto.ImporteFormula ?? "0");
+                            insertConceptoCmd.Parameters.AddWithValue("@Orden", orden++);
+
+                            await insertConceptoCmd.ExecuteNonQueryAsync();
+                        }
+                    }
+
+                    transaction.Commit();
+
+                    // Calcular próxima ejecución para el mensaje
+                    var proximaEjecucion = plantilla.TipoProgramacion == "DiaMes"
+                        ? $"día {plantilla.DiaEjecucion} del próximo mes"
+                        : $"próximo {plantilla.DiaSemana}";
+
+                    var cadena = await _facturacionService.GenerarCadenaFacturacion(plantilla);
+
+                    return Json(new {
+                        success = true,
+                        mensaje = $"✅ Plantilla '{plantilla.Nombre}' actualizada exitosamente. Próxima ejecución: {proximaEjecucion}",
+                        plantillaId = plantilla.Id,
+                        cadena = cadena
+                    });
+                }
+                catch
+                {
+                    transaction.Rollback();
+                    throw;
+                }
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
+        }
+
         public IActionResult Plantillas()
         {
             return View();
@@ -392,8 +525,7 @@ namespace FacturacionRecurrente.Controllers
                     FROM PlantillasFacturacion p
                     INNER JOIN Clientes c ON p.ClienteId = c.Id_Cliente
                     INNER JOIN propietarioRFC pr ON p.EmisorRFCId = pr.IdPropietarioRFC
-                    WHERE p.EsRecurrente = 1
-                    ORDER BY p.FechaCreacion DESC";
+                    ORDER BY p.Id DESC";
 
                 using var command = new SqlCommand(query, connection);
                 using var reader = await command.ExecuteReaderAsync();

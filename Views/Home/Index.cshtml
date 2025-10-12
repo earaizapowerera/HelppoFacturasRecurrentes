@@ -257,6 +257,9 @@
                             <button type="button" class="btn btn-primary" onclick="generarVistaPreviaWizard()">
                                 🔄 Actualizar Vista Previa
                             </button>
+                            <button type="button" class="btn btn-success" onclick="siguientePaso()">
+                                Siguiente ➡️ Configurar Programación
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -960,8 +963,12 @@
         }
 
         function guardarPlantillaRecurrente() {
-            // Recopilar datos básicos
+            // Si ya existe una plantilla guardada, usar ese ID
             const datos = recopilarDatos();
+
+            if (window.plantillaGuardadaId) {
+                datos.Id = window.plantillaGuardadaId;
+            }
 
             // Agregar nombre de la plantilla
             const nombrePlantilla = $('#nombrePlantilla').val();
@@ -990,17 +997,17 @@
             }
 
             const mensaje = tipoProgramacion === 'DiaMes'
-                ? `¿Desea guardar esta plantilla? Se ejecutará automáticamente el día ${datos.DiaEjecucion} de cada mes.`
-                : `¿Desea guardar esta plantilla? Se ejecutará automáticamente cada ${datos.DiaSemana}.`;
+                ? `¿Desea configurar la programación? Se ejecutará automáticamente el día ${datos.DiaEjecucion} de cada mes.`
+                : `¿Desea configurar la programación? Se ejecutará automáticamente cada ${datos.DiaSemana}.`;
 
             if (!confirm(mensaje)) {
                 return;
             }
 
-            $('#resultado-container').html('<div class="text-center"><div class="spinner-border" role="status"></div><br>Guardando plantilla recurrente...</div>');
+            $('#resultado-container').html('<div class="text-center"><div class="spinner-border" role="status"></div><br>Actualizando plantilla recurrente...</div>');
 
             $.ajax({
-                url: '/Home/GuardarPlantillaRecurrente',
+                url: window.plantillaGuardadaId ? '/Home/ActualizarPlantillaRecurrente' : '/Home/GuardarPlantillaRecurrente',
                 method: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify(datos),
@@ -1263,30 +1270,91 @@
                 return;
             }
 
-            $('#vistaPrevia-cadena').html('<div class="text-center"><div class="spinner-border" role="status"></div><br>Generando cadena...</div>');
+            // Generar un nombre temporal para la plantilla si no existe
+            if (!window.plantillaGuardadaId) {
+                datos.Nombre = `Plantilla_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}`;
+                datos.TipoProgramacion = 'DiaMes'; // Default
+                datos.DiaEjecucion = 1; // Default
+                datos.EsRecurrente = false; // Se configurará en paso 3
+                datos.Activa = false; // Se activará en paso 3
+            }
 
+            $('#vistaPrevia-cadena').html('<div class="text-center"><div class="spinner-border" role="status"></div><br>Generando cadena y guardando plantilla...</div>');
+
+            // Primero guardar la plantilla
             $.ajax({
-                url: '/Home/GenerarCadenaPreview',
+                url: '/Home/GuardarPlantillaRecurrente',
                 method: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify(datos),
-                success: function(response) {
-                    if (response.success) {
-                        const cadenaFormatted = response.cadena.replace(/\|/g, '|<br>');
+                success: function(saveResponse) {
+                    if (saveResponse.success && saveResponse.plantillaId) {
+                        // Guardar el ID de la plantilla para usarlo después
+                        window.plantillaGuardadaId = saveResponse.plantillaId;
+
+                        // Ahora generar la cadena preview
+                        $.ajax({
+                            url: '/Home/GenerarCadenaPreview',
+                            method: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify(datos),
+                            success: function(response) {
+                                if (response.success) {
+                                    const cadenaFormatted = response.cadena.replace(/\|/g, '|<br>');
+                                    $('#vistaPrevia-cadena').html(`
+                                        <div class="alert alert-success">
+                                            <h6>✅ Cadena Generada y Plantilla Guardada</h6>
+                                            <div style="font-family: monospace; font-size: 0.8rem; background: #f8f9fa; padding: 10px; border-radius: 5px; word-break: break-all;">
+                                                ${cadenaFormatted}
+                                            </div>
+                                            <div class="mt-3">
+                                                <button type="button" class="btn btn-primary" onclick="siguientePaso()">
+                                                    Siguiente ➡️ Configurar Programación
+                                                </button>
+                                            </div>
+                                        </div>
+                                    `);
+                                } else {
+                                    $('#vistaPrevia-cadena').html(`<div class="alert alert-danger">Error: ${response.error}</div>`);
+                                }
+                            },
+                            error: function(xhr) {
+                                $('#vistaPrevia-cadena').html(`<div class="alert alert-danger">
+                                    <h6>❌ Error al generar cadena</h6>
+                                    <p>No se pudo conectar con el servidor</p>
+                                </div>`);
+                            }
+                        });
+                    } else {
+                        // Error al guardar - mostrar mensaje específico
+                        const errorMsg = saveResponse.error || 'Error desconocido';
                         $('#vistaPrevia-cadena').html(`
-                            <div class="alert alert-success">
-                                <h6>✅ Cadena Generada</h6>
-                                <div style="font-family: monospace; font-size: 0.8rem; background: #f8f9fa; padding: 10px; border-radius: 5px; word-break: break-all;">
-                                    ${cadenaFormatted}
-                                </div>
+                            <div class="alert alert-danger">
+                                <h6>❌ Error al guardar plantilla</h6>
+                                <p><strong>Detalle:</strong> ${errorMsg}</p>
+                                ${errorMsg.includes('conexión') || errorMsg.includes('network') || errorMsg.includes('SQL') ?
+                                    '<p class="mb-0"><small>⚠️ Verifique la conexión con la base de datos</small></p>' : ''}
                             </div>
                         `);
-                    } else {
-                        $('#vistaPrevia-cadena').html(`<div class="alert alert-danger">Error: ${response.error}</div>`);
                     }
                 },
-                error: function() {
-                    $('#vistaPrevia-cadena').html('<div class="alert alert-danger">Error de conexión</div>');
+                error: function(xhr, status, error) {
+                    // Error de conexión o servidor
+                    let errorDetail = 'Error de conexión con el servidor';
+                    if (xhr.status === 0) {
+                        errorDetail = 'No se pudo conectar con el servidor. Verifique que el servidor esté ejecutándose.';
+                    } else if (xhr.status === 500) {
+                        errorDetail = 'Error interno del servidor. Posible problema de conexión con la base de datos.';
+                    }
+
+                    $('#vistaPrevia-cadena').html(`
+                        <div class="alert alert-danger">
+                            <h6>❌ Error al guardar plantilla</h6>
+                            <p><strong>Estado:</strong> ${xhr.status || 'Sin conexión'}</p>
+                            <p><strong>Detalle:</strong> ${errorDetail}</p>
+                            <p class="mb-0"><small>⚠️ Verifique la conexión con la base de datos y que el servidor esté ejecutándose correctamente</small></p>
+                        </div>
+                    `);
                 }
             });
         }
